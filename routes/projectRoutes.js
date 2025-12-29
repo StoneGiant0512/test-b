@@ -6,12 +6,23 @@ const projectController = require('../controllers/projectController');
 
 /**
  * @route   GET /api/projects
- * @desc    Get all projects with optional filtering (status, search)
+ * @desc    Get all projects with optional filtering, pagination, and sorting
  * @access  Private (requires JWT token)
  * @query   status - Filter by status (active, on hold, completed)
  * @query   search - Search by name or assigned team member
+ * @query   page - Page number (default: 1)
+ * @query   limit - Items per page (default: 10)
+ * @query   sortField - Field to sort by (name, status, deadline, assigned_team_member, budget, created_at)
+ * @query   sortDirection - Sort direction (asc, desc)
  */
 router.get('/', projectController.getAllProjects);
+
+/**
+ * @route   GET /api/projects/counts
+ * @desc    Get project counts by status (for status badges)
+ * @access  Private (requires JWT token)
+ */
+router.get('/counts', projectController.getProjectCounts);
 
 /**
  * @route   GET /api/projects/:id

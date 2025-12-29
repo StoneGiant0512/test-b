@@ -1,22 +1,32 @@
 const projectService = require('../services/projectService');
 
 /**
- * Get all projects with optional filtering
+ * Get all projects with optional filtering, pagination, and sorting
  * @route GET /api/projects
+ * @query {string} status - Filter by status (active, on hold, completed)
+ * @query {string} search - Search by name or assigned team member
+ * @query {number} page - Page number (default: 1)
+ * @query {number} limit - Items per page (default: 10)
+ * @query {string} sortField - Field to sort by (name, status, deadline, assigned_team_member, budget, created_at)
+ * @query {string} sortDirection - Sort direction (asc, desc)
  */
 const getAllProjects = async (req, res) => {
   try {
     const filters = {
       status: req.query.status,
       search: req.query.search,
+      page: req.query.page,
+      limit: req.query.limit,
+      sortField: req.query.sortField,
+      sortDirection: req.query.sortDirection,
     };
 
-    const projects = await projectService.getAllProjects(filters);
+    const result = await projectService.getAllProjects(filters);
     
     res.status(200).json({
       success: true,
-      count: projects.length,
-      data: projects,
+      data: result.data,
+      pagination: result.pagination,
     });
   } catch (error) {
     console.error('Error in getAllProjects controller:', error);
@@ -232,11 +242,34 @@ const deleteProject = async (req, res) => {
   }
 };
 
+/**
+ * Get project counts by status (for status badges)
+ * @route GET /api/projects/counts
+ */
+const getProjectCounts = async (req, res) => {
+  try {
+    const counts = await projectService.getProjectCounts();
+    
+    res.status(200).json({
+      success: true,
+      data: counts,
+    });
+  } catch (error) {
+    console.error('Error in getProjectCounts controller:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching project counts',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getAllProjects,
   getProjectById,
   createProject,
   updateProject,
   deleteProject,
+  getProjectCounts,
 };
 

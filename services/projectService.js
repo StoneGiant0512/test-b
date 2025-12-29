@@ -1,36 +1,111 @@
 const { pool } = require('../config/database');
 
 /**
- * Get all projects from the database
- * @param {Object} filters - Optional filters (status, search)
- * @returns {Promise<Array>} Array of project objects
+ * Get all projects from the database with pagination
+ * @param {Object} filters - Optional filters (status, search, page, limit)
+ * @returns {Promise<Object>} Object with data (array of projects) and pagination metadata
  */
 const getAllProjects = async (filters = {}) => {
   try {
-    let query = 'SELECT * FROM projects WHERE 1=1';
+    // Build base WHERE clause for filtering
+    let whereClause = 'WHERE 1=1';
     const params = [];
     let paramCount = 1;
 
     // Filter by status if provided
     if (filters.status && filters.status !== 'all') {
-      query += ` AND status = $${paramCount}`;
+      whereClause += ` AND status = $${paramCount}`;
       params.push(filters.status);
       paramCount++;
     }
 
     // Search by name or assigned team member if provided
     if (filters.search) {
-      query += ` AND (name ILIKE $${paramCount} OR assigned_team_member ILIKE $${paramCount})`;
+      whereClause += ` AND (name ILIKE $${paramCount} OR assigned_team_member ILIKE $${paramCount})`;
       params.push(`%${filters.search}%`);
       paramCount++;
     }
 
-    query += ' ORDER BY created_at DESC';
+    // Pagination parameters
+    const page = parseInt(filters.page) || 1;
+    const limit = parseInt(filters.limit) || 10;
+    const offset = (page - 1) * limit;
 
-    const result = await pool.query(query, params);
-    return result.rows;
+    // Sort parameters - validate against allowed fields
+    const validSortFields = ['name', 'status', 'deadline', 'assigned_team_member', 'budget', 'created_at'];
+    const sortField = validSortFields.includes(filters.sortField) ? filters.sortField : 'created_at';
+    const sortDirection = filters.sortDirection === 'desc' ? 'DESC' : 'ASC';
+
+    // Get total count of projects matching filters
+    const countQuery = `SELECT COUNT(*) as total FROM projects ${whereClause}`;
+    const countResult = await pool.query(countQuery, params);
+    const total = parseInt(countResult.rows[0].total);
+
+    // Get paginated projects with sorting
+    // Note: sortField is validated above, so it's safe to use in ORDER BY
+    const dataQuery = `
+      SELECT * FROM projects 
+      ${whereClause}
+      ORDER BY ${sortField} ${sortDirection}
+      LIMIT $${paramCount} OFFSET $${paramCount + 1}
+    `;
+    const dataParams = [...params, limit, offset];
+    const dataResult = await pool.query(dataQuery, dataParams);
+
+    // Calculate pagination metadata
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data: dataResult.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+      },
+    };
   } catch (error) {
     console.error('Error fetching projects:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get total count of projects by status (for status badges)
+ * @returns {Promise<Object>} Object with counts by status
+ */
+const getProjectCounts = async () => {
+  try {
+    const query = `
+      SELECT 
+        status,
+        COUNT(*) as count
+      FROM projects
+      GROUP BY status
+    `;
+    const result = await pool.query(query);
+    
+    // Initialize counts
+    const counts = {
+      all: 0,
+      active: 0,
+      'on hold': 0,
+      completed: 0,
+    };
+
+    // Sum up all counts for 'all'
+    result.rows.forEach((row) => {
+      const status = row.status;
+      const count = parseInt(row.count);
+      counts.all += count;
+      if (counts.hasOwnProperty(status)) {
+        counts[status] = count;
+      }
+    });
+
+    return counts;
+  } catch (error) {
+    console.error('Error fetching project counts:', error);
     throw error;
   }
 };
@@ -140,5 +215,6 @@ module.exports = {
   createProject,
   updateProject,
   deleteProject,
+  getProjectCounts,
 };
 
