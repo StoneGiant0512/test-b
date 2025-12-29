@@ -1,6 +1,9 @@
 const express = require('express');
 const cors = require('cors');
-require('dotenv').config({ path: '.env.production'});
+// Load environment variables - use .env.production in production, .env in development
+require('dotenv').config({ 
+  path: process.env.NODE_ENV === 'production' ? '.env.production' : '.env'
+});
 
 const { initializeDatabase } = require('./setup/setup');
 const routes = require('./routes');
@@ -17,7 +20,6 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   credentials: false, // Set to true if you need cookies
 }));
-app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
